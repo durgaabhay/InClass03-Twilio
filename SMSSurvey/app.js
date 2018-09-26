@@ -49,28 +49,22 @@ app.get('/',(req,res) => {
 });
 
 app.post('/inbound',(req,res) => {
-
-
-    let from=req.body.From;
+ let from=req.body.From;
     let to=req.body.To;
     let body=req.body.Body;
-
     console.log(body);
-    Message.find({phoneNumber: req.body.From},(err,message)=>{
-
-        if(message.length ==0)
-        {//Existing User
-            if(step==0 && body==='Start'){
+    Message.find().select('phoneNumber').then((message)=>{
+        if(message !== null){
+            console.log('User exists : ' + message + 'with step value' + step);
+            if(step==0 && body ==='Start') {
                 client.messages.create({
                     to:`${from}`,
                     from:`${to}`,
                     body:'Please indicate your symptom (1)Headache, (2)Dizziness, (3)Nausea, (4)Fatigue, (5)Sadness, (0)None'
                 })
                 step = 1;
-                // startTimer(to,from);
             }
-            else if (step==1 && body==0){
-                // stopTimer();
+            else if (step==1 && body == 0){
                 client.messages.create({
                     to:`${from}`,
                     from:`${to}`,
@@ -78,10 +72,9 @@ app.post('/inbound',(req,res) => {
                 })
                 step = 0;
             }
-            else if (step==1 && req.body.Body > 0 && req.body.Body < 6)
+            else if (step==1 && body > 0 && body < 6)
             {
-                // stopTimer();
-                symptomid = req.body.Body-1
+                symptomid = body-1
                 symptom = symptomList[symptomid];
                 client.messages.create({
                     to:`${from}`,
@@ -90,14 +83,14 @@ app.post('/inbound',(req,res) => {
                 })
                 step = 2;
             }
-            else if (step==1 && (req.body.Body < 0 || req.body.Body > 5))
+            else if (step==1 && (body < 0 || body > 5))
             {   client.messages.create({
                 to:`${from}`,
                 from:`${to}`,
                 body:'Please enter a number from 0 to 5'
             })
             }
-            else if (step==2 && (req.body.Body < 0 || req.body.Body > 4))
+            else if (step==2 && (body < 0 || body > 4))
             {
                 client.messages.create({
                     to:`${from}`,
@@ -107,8 +100,8 @@ app.post('/inbound',(req,res) => {
             }
             else if(step==2)
             {
-                var nbr = Number(req.body.Body)
-                switch (nbr)
+                let userSymptom = Number(body)
+                switch (userSymptom)
                 {
                     case 0:
                         client.messages.create({
@@ -145,54 +138,69 @@ app.post('/inbound',(req,res) => {
                             body:'You have a severe '+symptom
                         })
                         break;
-                }//case statement ends here
-                count++;
-                if (count<4){
+                }//switch case ends here
+                count = count + 1;
+                console.log('incrementing count value to display symptoms again ' + count);
+                if (count<3){
                     step=1;
                     symptomList.splice(symptomid,1);
-                    var str='Please indicate your symptom';
-                    for (i = 1; i < symptomList.length; i++) {
-                        str += " (" + i + ")"+symptomList[i-1] +",";
+                    console.log('After truncating symptom from the list :' + symptomList.length);
+                    let questionString='Please indicate your symptom';
+                    for (let i = 1; i < symptomList.length; i++) {
+                        questionString += " (" + i + ")"+symptomList[i-1] +",";
                     }
-                    str +=" (0)None";
+                    questionString +=" (0)None";
 
                     client.messages.create({
                         to:`${from}`,
                         from:`${to}`,
-                        body:str
+                        body:questionString
                     })
                 }
-            }
-            else{
+            }else{//else loop if user enter something other than start
+                console.log('User entering wrong message to start the survey' + body);
                 client.messages.create({
                     to:`${from}`,
                     from:`${to}`,
-                    body:'Please text START to enroll into the study'
+                    body: 'If you wish to take up the survey enter by typing Start'
                 })
             }
-        }  //outer if ends here
-
-        else
-        {//New user
-            // if(body==='START')
-            // {
-                let newMessage=new Message();
-                newMessage.phoneNumber=from;
-                newMessage.save(()=>{
+        }else{
+            //loop begins for new user
+            if(body === 'Start'){
+                console.log('new user entering' + body + 'with phone number : ' + from);
+                let newMessage = new Message();
+                newMessage.phoneNumber = from;
+                console.log(newMessage.phoneNumber);
+                newMessage.save().then(()=>{
                     client.messages.create({
                         to:`${from}`,
                         from:`${to}`,
                         body:'Welcome to the study. Please indicate your symptom (1)Headache, (2)Dizziness, (3)Nausea, (4)Fatigue, (5)Sadness, (0)None'
-
                     })
                 })
-
-                console.log("New User logging in");
-            } //inner if ends here
-        // }  //else ends here
+            }//Loop ends for new user
+        }
     }) //Message.find() ends here
     res.end();
- });
+});
+
+
+app.get('/users', (req,res,next)=>{
+    Message.find().select('phoneNumber')
+        .exec()
+        .then(data => {
+            console.log(data);
+            res.status(200).json({data});
+        })
+        .catch(err=>{
+            console.log(err);
+            res.status(500).json({
+                message: 'Error retrieving surveys',
+                error:err
+            });
+        });
+});
 
 app.post('/mobile/sendMessage/', (req,res,next) => {
     console.log('Inside sendMessage API', req.body.mobileNo, req.body.userMessage);
