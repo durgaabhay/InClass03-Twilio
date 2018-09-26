@@ -141,7 +141,15 @@ app.post('/inbound',(req,res) => {
                 }//switch case ends here
                 count = count + 1;
                 console.log('incrementing count value to display symptoms again ' + count);
-                if (count<3){
+                if(count==3){
+                    step = 0;
+                    count = 0;
+                    client.messages.create({
+                        to:`${from}`,
+                        from:`${to}`,
+                        body: 'Thank you and see you soon'
+                    })
+                }else{
                     step=1;
                     symptomList.splice(symptomid,1);
                     console.log('After truncating symptom from the list :' + symptomList.length);
